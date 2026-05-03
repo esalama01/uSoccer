@@ -1,1 +1,14 @@
 .venv/
+
+# Playwright
+node_modules/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+package-lock.json
+package.json
+playwright.config.js
+example.spec.js
+driver_fixing.lock
