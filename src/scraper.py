@@ -4,8 +4,8 @@ from bs4 import BeautifulSoup
 from curl_cffi import requests
 
 # --- CONFIGURATION ---
-TARGET_URL = "https://www.whoscored.com/matches/1887332/live/international-africa-cup-of-nations-2025-morocco-comoros"
-OUTPUT_FILENAME = "afcon_match_events.csv"
+TARGET_URL = "https://www.whoscored.com/matches/1963376/live/international-africa-cup-of-nations-2025-senegal-morocco"
+OUTPUT_FILENAME = "7-Morroco-Senegal.csv"
 # ---------------------
 
 def get_match_data(url):
