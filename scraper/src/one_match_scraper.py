@@ -2,11 +2,13 @@ import json
 import pandas as pd
 from bs4 import BeautifulSoup
 from curl_cffi import requests
-
+import re
 # --- CONFIGURATION ---
 TARGET_URL = "https://www.whoscored.com/matches/1914240/live/spain-laliga-2025-2026-espanyol-real-madrid"
 OUTPUT_FILENAME = "new.csv"
 # ---------------------
+
+
 
 def get_match_data(url):
     """
@@ -43,19 +45,22 @@ def get_match_data(url):
         # raw_decode parses the first valid JSON object and ignores trailing JS/semicolons.
         data, _ = json.JSONDecoder().raw_decode(raw_text)
         return data
-
     except Exception as e:
         print(f"(!) Connection/Parsing error: {e}")
         return None
 
 
+def clean_filename(name):
+    return re.sub(r'[^A-Za-z0-9_-]', '', name.replace(' ', '_'))
+
 if __name__ == "__main__":
+    OUTPUT_FILENAME = "1914240_match_data.json"
     match_data = get_match_data(TARGET_URL)
     
     if match_data:
-        events_df = df = pd.DataFrame(match_data['events'])
-        events_df.to_csv(OUTPUT_FILENAME, index=False)
+        with open(OUTPUT_FILENAME, "w", encoding="utf-8") as f:
+            json.dump(match_data, f, ensure_ascii=False, indent=4)
+        
         print(f"--- SUCCESS --- Data saved to {OUTPUT_FILENAME}")
-        print(f"Total events processed: {len(events_df)}")
     else:
         print("Scraping failed.")

@@ -1,1 +1,2 @@
 # uSoccer
+.venv/
