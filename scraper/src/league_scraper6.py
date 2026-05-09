@@ -6,13 +6,12 @@ from bs4 import BeautifulSoup
 from curl_cffi import requests
 
 # --- CONFIGURATION ---
-STAGE_ID = "24622"  # Extracted from: /stages/24622/
+STAGE_ID = "18657"  # 
 # Spanish La Liga typically runs from August to May
 MONTHS_TO_SCRAPE = [
-    "202508", "202509", "202510", "202511", "202512", 
-    "202601", "202602", "202603", "202604", "202605"
+    "202211", "202212"
 ]
-OUTPUT_DIR = "data/LaLiga_2025_2026"
+OUTPUT_DIR = "../data/netherlands-eredivisie-2021-2022"
 # ---------------------
 
 HEADERS = {
@@ -111,7 +110,5 @@ if __name__ == "__main__":
         else:
             print(f"--- SKIPPED --- Match {match_id} failed or has no data yet.")
             
-        # CRITICAL: Wait between 3 to 5 seconds between matches to avoid IP bans
-        time.sleep(3)
 
     print("\n--- SCRAPING COMPLETE ---")

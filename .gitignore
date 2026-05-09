@@ -12,3 +12,6 @@ package.json
 playwright.config.js
 example.spec.js
 driver_fixing.lock
+
+.venv/
+scraper/data/
