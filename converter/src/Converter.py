@@ -46,6 +46,7 @@ def convert(file_path): #takes a file as input and converts it to csv spadl.
             if entry.is_file():
                 path.append(entry.path)
 """
+
 def create_subdirs(name, corr_year): #returns the name of thhe created subdirectory, and year of the next sub to fill it in the whoscored parser.(input like : Epl/england-premier-league-2025-2026)
     values = [
     "ITA-Serie A",
@@ -83,6 +84,33 @@ def create_subdirs(name, corr_year): #returns the name of thhe created subdirect
     
     return map[name], year, path
 
+def convert(file_path, file_name, comp_id, sea_id): #takes a file as input and converts it to csv spadl and returns the csv.
+    
+    with open(file_path, "r", encoding="utf-8") as f:
+        json_data = json.load(f)
+    
+    home_team_id = int(json_data["home"]["teamId"])
+    
+    pattern = r"^\d+(?=_)"
+
+    match = re.search(pattern, file_name)
+
+    if match:
+        id = match.group()
+
+    parser = WhoScoredParser(
+        file_path,
+        competition_id= comp_id,
+        season_id= sea_id, 
+        game_id=id,
+    )
+    df_events = pd.DataFrame.from_dict(parser.extract_events(), orient="index") #extract events returns a dictionary with all available events.
+    df_events = df_events.merge(_eventtypesdf, on="type_id", how="left").reset_index(drop=True) ##_eventtypesdf converts the whoscored events types to opta's --> Gets them ready for conversion 
+    
+    df_spadl = convert_to_actions(df_events, home_team_id=home_team_id) #Converts opta events to spadl actions.
+
+    return df_spadl
+
 
 
 def traversal():
@@ -96,7 +124,7 @@ def traversal():
                         with os.scandir(sub_entry.path) as file_entries:
                             for file in file_entries:
                                 if file.is_file():
-                                    convert(file_path)
+                                    convert(file.path, file.name, league, year)
 
 def main():
     for repo in repos:
