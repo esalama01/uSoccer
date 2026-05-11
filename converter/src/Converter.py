@@ -17,46 +17,9 @@ from socceraction.spadl.opta import convert_to_actions
 from socceraction.data.opta.loader import _eventtypesdf
 import os
 from pathlib import Path
-#Get all the subtrees at {converter/data}
 
-initial_dir = r"../../scraper/data"
-
-whoscored_leagues = [
-    "ITA-Serie A",
-    "ENG-Premier League",
-    "INT-World Cup",
-    "GER-Bundesliga",
-    "POR-Liga Portugal",
-    "NED-Eredivisie",
-    "AMER-Copa America",
-    "ESP-La Liga",
-    "AFR-Africa Cup of Nations",
-    "EUR-Champions League",
-    "FRA-Ligue 1",
-    "EUR-Euro"
-]
-keys = ["Serie-a",
-"Epl",
-"World Cup",
-"Bundesliga",
-"Liga Portugal",
-"Netherlands Eredivisie",
-"Copa America",
-"La Liga,"
-"Afcon",
-"Ucl",
-"Ligue-1",
-"Euro"]
-values = whoscored_leagues
-
-map = dict(zip(keys, values))
 
 """
-def create_subd(name):
-    path = Path(f"../data/{map[name]}")
-    # Create the directories
-    path.mkdir(parents=True, exist_ok=True)
-
 
 def scan_dir(path):
     repos = set()
@@ -76,7 +39,7 @@ for repo in repos:
     for n_repo in new_repos:
         sub_repos.add(n_repo)
 
-def convert(file_path): #takes a folder as input and converts every file in it to spadl.
+def convert(file_path): #takes a file as input and converts it to csv spadl.
     paths = [] 
     with os.scandir(path) as entries:
         for entry in entries:
@@ -84,13 +47,56 @@ def convert(file_path): #takes a folder as input and converts every file in it t
                 path.append(entry.path)
 """
 def create_subdirs(name, corr_year): #returns the name of thhe created subdirectory, and year of the next sub to fill it in the whoscored parser.(input like : Epl/england-premier-league-2025-2026)
+    values = [
+    "ITA-Serie A",
+    "ENG-Premier League",
+    "INT-World Cup",
+    "GER-Bundesliga",
+    "POR-Liga Portugal",
+    "NED-Eredivisie",
+    "AMER-Copa America",
+    "ESP-La Liga",
+    "AFR-Africa Cup of Nations",
+    "EUR-Champions League",
+    "FRA-Ligue 1",
+    "EUR-Euro"
+    ]
+    keys = ["Serie-a",
+    "Epl",
+    "World Cup",
+    "Bundesliga",
+    "Liga Portugal",
+    "Netherlands Eredivisie",
+    "Copa America",
+    "La Liga,"
+    "Afcon",
+    "Ucl",
+    "Ligue-1",
+    "Euro"]
+    map = dict(zip(keys, values))
     pattern = r"\d{4}"
     years = re.findall(pattern, corr_year)
     year = "-".join(years)
     path = Path(f"../data/{map[name]}/{year}")
     # Create the directories
     path.mkdir(parents=True, exist_ok=True)
-    return map[name], year
+    
+    return map[name], year, path
+
+
+
+def traversal():
+    initial_dir = r"../../scraper/data"
+    with os.scandir(initial_dir) as entries:
+        for entry in entries:
+            if entry.is_dir():
+                with os.scandir(entry.path) as sub_entries:
+                    for sub_entry in sub_entries:
+                        league, year, new_path = create_subdirs(entry.name, sub_entry.name)
+                        with os.scandir(sub_entry.path) as file_entries:
+                            for file in file_entries:
+                                if file.is_file():
+                                    convert(file_path)
 
 def main():
     for repo in repos:
