@@ -47,7 +47,7 @@ def convert(file_path): #takes a file as input and converts it to csv spadl.
                 path.append(entry.path)
 """
 
-def create_subdirs(name, corr_year): #returns the name of thhe created subdirectory, and year of the next sub to fill it in the whoscored parser.(input like : Epl/england-premier-league-2025-2026)
+def create_subdirs(name, corr_year): #returns the name of the created subdirectory, and year of the next sub to fill it in the whoscored parser.(input like : Epl/england-premier-league-2025-2026)
     values = [
     "ITA-Serie A",
     "ENG-Premier League",
@@ -115,6 +115,7 @@ def convert(file_path, file_name, comp_id, sea_id): #takes a file as input and c
 
 def traversal():
     initial_dir = r"../../scraper/data"
+    i = 0
     with os.scandir(initial_dir) as entries:
         for entry in entries:
             if entry.is_dir():
@@ -124,14 +125,16 @@ def traversal():
                         with os.scandir(sub_entry.path) as file_entries:
                             for file in file_entries:
                                 if file.is_file():
-                                    convert(file.path, file.name, league, year)
+                                    output = convert(file.path, file.name, league, year)
+                                    new_path.parent.mkdir(parents=True, exist_ok=True)
+                                    full_new_path = fr"{new_path}/{file.name}.csv"
+                                    output.to_csv(full_new_path,index = False)
+                                    print(f"converted {i} files")
+                                    i += 1
+
 
 def main():
-    for repo in repos:
-        print(repo)
-    print("---------------------------------------------------------------")
-    for repo in sub_repos:
-        print(repo)
+    traversal()
 
 
 if __name__ == "__main__":
