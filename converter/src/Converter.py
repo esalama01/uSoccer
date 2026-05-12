@@ -69,7 +69,7 @@ def create_subdirs(name, corr_year): #returns the name of the created subdirecto
     "Liga Portugal",
     "Netherlands Eredivisie",
     "Copa America",
-    "La Liga,"
+    "La Liga",
     "Afcon",
     "Ucl",
     "Ligue-1",
@@ -125,13 +125,17 @@ def traversal():
                         with os.scandir(sub_entry.path) as file_entries:
                             for file in file_entries:
                                 if file.is_file():
-                                    output = convert(file.path, file.name, league, year)
-                                    new_path.parent.mkdir(parents=True, exist_ok=True)
-                                    full_new_path = fr"{new_path}/{file.name}.csv"
-                                    output.to_csv(full_new_path,index = False)
-                                    print(f"converted {i} files")
-                                    i += 1
-
+                                    try:
+                                        output = convert(file.path, file.name, league, year)
+                                        new_path.parent.mkdir(parents=True, exist_ok=True)
+                                        match_id = file.name.split('_')[0]
+                                        full_new_path = fr"{new_path}/{match_id}.csv"
+                                        output.to_csv(full_new_path, index=False)
+                                        print(f"converted {i} files: {file.name}")
+                                        i += 1
+                                    except Exception as e:
+                                        print(f"FAILED on file {file.name}: {e}")
+                                        continue 
 
 def main():
     traversal()
