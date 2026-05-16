@@ -3,6 +3,7 @@ import pandas as pd
 from bs4 import BeautifulSoup
 from curl_cffi import requests
 import re
+
 # --- CONFIGURATION ---
 TARGET_URL = "https://www.whoscored.com/matches/1914240/live/spain-laliga-2025-2026-espanyol-real-madrid"
 OUTPUT_FILENAME = "new.csv"

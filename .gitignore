@@ -15,3 +15,8 @@ driver_fixing.lock
 
 .venv/
 scraper/data/
+converter/data
+converter/src/mods.py
+parquet.py
+analytics/data/
+uSoccer_dataset.parquet/
