@@ -15,6 +15,7 @@ driver_fixing.lock
 
 data/raw/*
 data/spadl/*
+.idea/
 .venv/
 scraper/data/
 converter/data
