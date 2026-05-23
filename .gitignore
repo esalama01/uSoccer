@@ -13,6 +13,8 @@ playwright.config.js
 example.spec.js
 driver_fixing.lock
 
+data/raw/*
+data/spadl/*
 .venv/
 scraper/data/
 converter/data
