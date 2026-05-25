@@ -1,7 +1,9 @@
 from curl_cffi import requests
 from bs4 import BeautifulSoup
 import json
-class Match_Crawler: # A specific crawler that is designed to be compatible with whoscored's html.
+import re
+
+class MatchScraper: # A specific crawler that is designed to be compatible with whoscored's html.
     def __init__(self, base_url):
         self.base_url = base_url
 
@@ -16,17 +18,29 @@ class Match_Crawler: # A specific crawler that is designed to be compatible with
         try:
             response = requests.get(self.base_url,headers = headers, impersonate = "chrome120", timeout = 30)
             soup = BeautifulSoup(response.text, 'html.parser')
-            element = soup.select_one('script:-soup-contains("matchCentreData")')
-            raw_text = element.text.split("formationIdNameMappings:")[1].strip() #That is the match centre data in text format. It needs to be converted to json.
-            data, _ = json.JSONDecoder().raw_decode(raw_text)
-            return data
+            element = soup.select_one('script:-soup-contains("matchCentreData ")')
+            txt = element.text
+            raw_text = txt.split("formationIdNameMappings:")[1].strip() #That is the match centre data in text format. It needs to be converted to json.
+            data, _ = json.JSONDecoder().raw_decode(raw_text) #Got it converted to json format
+            return data #data in json format
 
         except Exception as e:
             print(f"(!) Connection/Parsing error: {e}")
             return None
 
-class League_Crawler(Match_Crawler):
-    def __init__(self, league_name, league_season):
+class LeagueScraper(MatchScraper):
+    def __init__(self, league_name, league_season): #league season must be in (xxxx-yyyy) format
+        season_pattern = r"^(\d{4})-\d{4}$"
+        name_pattern = r""
+        if not re.fullmatch(season_pattern, league_season):
+            raise ValueError("season must be in (xxxx-yyyy) format.")
+
+        #If league_name not in leagues, i must call get_league on it.
+
         self.name = league_name
-        self.season = season
+        self.season = league_season
+
+    def get_league(self):  # scrapes whoscored.com -> Gets the leagues ids and names and urls out of it -> For each league it gets the years and the stage ids out of it and saves all of this in a json file named dict.json
         
+
+
