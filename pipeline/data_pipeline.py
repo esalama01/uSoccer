@@ -66,6 +66,7 @@ class LeagueScraper(MatchScraper):
 
     def get_league(self):  # scrapes whoscored.com -> Gets the leagues ids and names and urls out of it -> For each league it gets the years and the stage ids out of it and saves all of this in a json file named dict.json
         leagues = self.all_leagues()
+        url = ""
         if self.country != None:
             for element in leagues:
                 if element['name'].lower() == self.country.lower():
@@ -75,6 +76,15 @@ class LeagueScraper(MatchScraper):
                             break
                     break
 
+        else:
+            for element in leagues:
+                for tournament in element['tournaments']:
+                    if tournament['name'].lower() == self.name.lower():
+                        url = tournament['url']
+                        break
 
+        return url
+
+    def get_seasons(self):
 
 
