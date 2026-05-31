@@ -67,7 +67,7 @@ class LeagueScraper(MatchScraper):
     def get_league(self):  # scrapes whoscored.com -> Gets the leagues ids and names and urls out of it -> For each league it gets the years and the stage ids out of it and saves all of this in a json file named dict.json
         leagues = self.all_leagues()
         url = ""
-        if self.country != None:
+        if self.country is not None:
             for element in leagues:
                 if element['name'].lower() == self.country.lower():
                     for tournament in element['tournaments']:
@@ -85,6 +85,37 @@ class LeagueScraper(MatchScraper):
 
         return url
 
-    def get_seasons(self):
+    def get_fixtures(self):
+        url = self.get_league()
+        if url is None:
+            raise ValueError("Couldn't scrape whoscored.")
 
+        full_url = "https://www.whoscored.com" + url
+
+        seasons = self.season.split('/')
+        months_to_scrape = [
+            seasons[0] + "08", seasons[0] +"09", seasons[0] + "10", seasons[0] + "11",seasons[0] + "12",
+            seasons[1] + "01", seasons[1] + "02", seasons[1] + "03", seasons[1] + "04", seasons[1] + "05",
+            seasons[1] + "06", seasons[1] + "07"
+        ]
+        headers = {
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+            "accept-language": "en-US,en;q=0.9",
+            "referer": "https://www.google.com/"
+        }
+
+        res = requests.get(full_url, headers=headers,impersonate="chrome120")
+        soup = BeautifulSoup(res.text, 'html.parser')
+        full = soup.find(attrs={"id": "seasons", "name": "seasons"})
+        listt = [x for x in full.contents if x != '\n']
+        dictt = {} #A dictionary containing year : fixtures link. I will use the fixtures link to scrape the data out of it. Might store the resulting dictionary in a file later.
+        for element in listt:
+            link = "https://www.whoscored.com" + element['value']
+            res1 = requests.get(link, headers=headers, impersonate="chrome120")
+            soup1 = BeautifulSoup(res1.text, 'html.parser')
+            fixtures = soup1.find(attrs={"id": "link-fixtures"})
+            new_element = {element.text: fixtures['href']}
+            dictt.update(new_element)
+        return dictt[self.season]
 
