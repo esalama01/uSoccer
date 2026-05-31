@@ -19,9 +19,12 @@ class MatchScraper: # A specific crawler that is designed to be compatible with 
         try:
             response = requests.get(self.base_url,headers = headers, impersonate = "chrome120", timeout = 30)
             soup = BeautifulSoup(response.text, 'html.parser')
-            element = soup.select_one('script:-soup-contains("var allRegions")')
-            txt = element.text
-            raw_text = txt.split("var allRegion:")
+            element = soup.select_one('script:-soup-contains("matchCentreData ")')
+            if not element:
+                print("(!) Could not find matchCentreData script tag. (Game might not have started yet)")
+                return None
+
+            raw_text = element.text.split("matchCentreData: ")[1].strip()
             data, _ = json.JSONDecoder().raw_decode(raw_text) #Got it converted to json format
             return data #data in json format
 
@@ -53,7 +56,7 @@ class LeagueScraper(MatchScraper):
         try:
             response = requests.get(url,headers = headers, impersonate = "chrome120", timeout = 30)
             soup = BeautifulSoup(response.text, 'html.parser')
-            element = soup.select_one('script:-soup-contains("matchCentreData ")')
+            element = soup.select_one('script:-soup-contains("var allRegions")')
             raw_text = element.text.split("var allRegion= ")[0].strip().replace("var allRegions = ","")
             txtt = raw_text.split(",\n")
             new_list = []
@@ -114,9 +117,12 @@ class LeagueScraper(MatchScraper):
         return dictt
 
     def get_matches(self):
+        fixtures = self.get_fixtures()
         seasons = self.season.split('/')
         months_to_scrape = [
             seasons[0] + "08", seasons[0] + "09", seasons[0] + "10", seasons[0] + "11", seasons[0] + "12",
             seasons[1] + "01", seasons[1] + "02", seasons[1] + "03", seasons[1] + "04", seasons[1] + "05",
             seasons[1] + "06", seasons[1] + "07"
         ]
+        my_fixture = fixtures[self.season]
+        stage_id = my_fixture.split('/')[8]
