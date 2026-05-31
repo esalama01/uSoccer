@@ -92,12 +92,6 @@ class LeagueScraper(MatchScraper):
 
         full_url = "https://www.whoscored.com" + url
 
-        seasons = self.season.split('/')
-        months_to_scrape = [
-            seasons[0] + "08", seasons[0] +"09", seasons[0] + "10", seasons[0] + "11",seasons[0] + "12",
-            seasons[1] + "01", seasons[1] + "02", seasons[1] + "03", seasons[1] + "04", seasons[1] + "05",
-            seasons[1] + "06", seasons[1] + "07"
-        ]
         headers = {
             "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
@@ -117,5 +111,12 @@ class LeagueScraper(MatchScraper):
             fixtures = soup1.find(attrs={"id": "link-fixtures"})
             new_element = {element.text: fixtures['href']}
             dictt.update(new_element)
-        return dictt[self.season]
+        return dictt
 
+    def get_matches(self):
+        seasons = self.season.split('/')
+        months_to_scrape = [
+            seasons[0] + "08", seasons[0] + "09", seasons[0] + "10", seasons[0] + "11", seasons[0] + "12",
+            seasons[1] + "01", seasons[1] + "02", seasons[1] + "03", seasons[1] + "04", seasons[1] + "05",
+            seasons[1] + "06", seasons[1] + "07"
+        ]
