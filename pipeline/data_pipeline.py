@@ -5,45 +5,48 @@ import re
 import json5
 
 class MatchScraper: # A specific crawler that is designed to be compatible with whoscored's html.
-    def __init__(self, base_url):
-        self.base_url = base_url
+    def __init__(self, base_urls):
+        self.base_urls = base_urls
 
-    def crawl(self): #This returns the
+    def crawl(self): #This returns the match event data in json format
         headers = {
             "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
             "accept-language": "en-US,en;q=0.9",
             "referer": "https://www.google.com/"
         }
+        all_match_data = []
+        for base_url in self.base_urls:
+            try:
+                response = requests.get(base_url,headers = headers, impersonate = "chrome120", timeout = 30)
+                soup = BeautifulSoup(response.text, 'html.parser')
+                element = soup.select_one('script:-soup-contains("matchCentreData ")')
+                if not element:
+                    print("(!) Could not find matchCentreData script tag. (Game might not have started yet)")
+                    continue
 
-        try:
-            response = requests.get(self.base_url,headers = headers, impersonate = "chrome120", timeout = 30)
-            soup = BeautifulSoup(response.text, 'html.parser')
-            element = soup.select_one('script:-soup-contains("matchCentreData ")')
-            if not element:
-                print("(!) Could not find matchCentreData script tag. (Game might not have started yet)")
-                return None
+                raw_text = element.text.split("matchCentreData: ")[1].strip()
+                data, _ = json.JSONDecoder().raw_decode(raw_text) #Got it converted to json format
+                all_match_data.append(data) #data in json format
 
-            raw_text = element.text.split("matchCentreData: ")[1].strip()
-            data, _ = json.JSONDecoder().raw_decode(raw_text) #Got it converted to json format
-            return data #data in json format
-
-        except Exception as e:
-            print(f"(!) Connection/Parsing error: {e}")
-            return None
+            except Exception as e:
+                print(f"(!) Connection/Parsing error: {e}")
+                continue
+        return all_match_data
 
 class LeagueScraper(MatchScraper):
     def __init__(self, league_name, league_season, country = None): #league season must be in (xxxx-yyyy) format
         #It's much better if the league country was provided.
-        season_pattern = r"^(\d{4})-\d{4}$"
+        season_pattern = r"^(\d{4})/\d{4}$"
         name_pattern = r""
         if not re.fullmatch(season_pattern, league_season):
-            raise ValueError("season must be in (xxxx-yyyy) format.")
+            raise ValueError("season must be in (xxxx/yyyy) format.")
         #If league_name not in leagues, i must call get_league on it.
 
         self.name = league_name
         self.season = league_season
         self.country = country
+        super().__init__(base_urls=[])
 
     def all_leagues(self):#Scrape whoscored.com
         url = "https://www.whoscored.com"
@@ -62,7 +65,7 @@ class LeagueScraper(MatchScraper):
             new_list = []
             for element in txtt:
                 new_list.append(json5.loads(element))
-            return element
+            return new_list
         except Exception as e:
             print(f"(!) Connection/Parsing error: {e}")
             return None
@@ -116,7 +119,7 @@ class LeagueScraper(MatchScraper):
             dictt.update(new_element)
         return dictt
 
-    def get_matches(self):
+    def get_matches(self): #Returns the list of the ids for the whole season.
         headers = {
             "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
@@ -144,3 +147,12 @@ class LeagueScraper(MatchScraper):
             except Exception as e:
                 print(f"(!) Error fetching schedule for month: {month},{e}")
         return match_ids
+
+    def get_data(self):
+        match_ids = self.get_matches()
+        urls_to_scrape = []
+        for id in match_ids:
+            url = f"https://www.whoscored.com/Matches/{id}/Live"
+            urls_to_scrape.append(url)
+        self.base_urls = urls_to_scrape
+        return self.crawl()
