@@ -117,6 +117,12 @@ class LeagueScraper(MatchScraper):
         return dictt
 
     def get_matches(self):
+        headers = {
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+            "accept-language": "en-US,en;q=0.9",
+            "referer": "https://www.google.com/"
+        }
         fixtures = self.get_fixtures()
         seasons = self.season.split('/')
         months_to_scrape = [
@@ -126,3 +132,15 @@ class LeagueScraper(MatchScraper):
         ]
         my_fixture = fixtures[self.season]
         stage_id = my_fixture.split('/')[8]
+        match_ids = [] #A list holding matchs ids
+        for month in months_to_scrape:
+            url = f"https://www.whoscored.com/tournaments/{stage_id}/data/?d={month}"
+            try:
+                response = requests.get(url, headers = headers, impersonate="chrome120", timeout=30)
+                data = response.json()
+                for tourney in data.get('tournaments', []):
+                    for match in tourney.get('matches', []):
+                        match_ids.append(match['id'])
+            except Exception as e:
+                print(f"(!) Error fetching schedule for month: {month},{e}")
+        return match_ids
