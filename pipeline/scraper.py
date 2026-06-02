@@ -20,7 +20,7 @@ class MatchScraper: # A specific crawler that is designed to be compatible with 
             try:
                 response = requests.get(base_url,headers = headers, impersonate = "chrome120", timeout = 30)
                 soup = BeautifulSoup(response.text, 'html.parser')
-                element = soup.select_one('script:-soup-contains("matchCentreData ")')
+                element = soup.select_one('script:-soup-contains("matchCentreData")')
                 if not element:
                     print("(!) Could not find matchCentreData script tag. (Game might not have started yet)")
                     continue
@@ -151,8 +151,16 @@ class LeagueScraper(MatchScraper):
     def get_data(self):
         match_ids = self.get_matches()
         urls_to_scrape = []
-        for id in match_ids:
-            url = f"https://www.whoscored.com/Matches/{id}/Live"
+        for match_id in match_ids:
+            url = f"https://www.whoscored.com/Matches/{match_id}/Live"
             urls_to_scrape.append(url)
         self.base_urls = urls_to_scrape
         return self.crawl()
+
+def main():
+    list = ["https://www.whoscored.com/matches/1914256/live/spain-laliga-2025-2026-real-madrid-athletic-club"]
+    scr = MatchScraper(list)
+    data = scr.crawl()
+    print(type(json.dumps(data[0])))
+if __name__ == "__main__":
+    main()
