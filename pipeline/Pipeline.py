@@ -3,6 +3,10 @@ from bs4 import BeautifulSoup
 import json
 import re
 import json5
+from socceraction.data.opta.parsers import WhoScoredParser
+from socceraction.spadl.opta import convert_to_actions
+from socceraction.data.opta.loader import _eventtypesdf
+
 
 class MatchScraper: # A specific crawler that is designed to be compatible with whoscored's html.
     def __init__(self, base_urls):
@@ -27,7 +31,7 @@ class MatchScraper: # A specific crawler that is designed to be compatible with 
 
                 raw_text = element.text.split("matchCentreData: ")[1].strip()
                 data, _ = json.JSONDecoder().raw_decode(raw_text) #Got it converted to json format
-                all_match_data.append(data) #data in json format
+                all_match_data.append({'data':data, 'url':base_url}) #data in json format
 
             except Exception as e:
                 print(f"(!) Connection/Parsing error: {e}")
@@ -156,11 +160,35 @@ class LeagueScraper(MatchScraper):
             urls_to_scrape.append(url)
         self.base_urls = urls_to_scrape
         return self.crawl()
+    #def save_data(self): #--> Polymorph behavior
+
+def get_infos(url):
+    pattern = re.compile(r'^[^-]+-(.+?)-(\d{4}-\d{4})')
+    match = pattern.search(url)
+    id, league, season = "", ""
+    if match:
+        id, league, season = match.group(1), match.group(2),match.group(3)
+    return id, league, season
+
+class SpadlConverter:
+    def __init__(self,data_list, combined_df = None): #The input data must be in JSON format
+        self.data_list = data_list
+        self.combined_df = combined_df
+
+
+    def parse(self):
+        for data_point in self.data_list: #data point is in the format data,url of the match.
+            url = data_point['url']
+            data = data_point['data']
+            home_team_id = int(data['home']['teamId'])
+            id,league,season = (get_infos(url))
+
 
 def main():
     list = ["https://www.whoscored.com/matches/1914256/live/spain-laliga-2025-2026-real-madrid-athletic-club"]
     scr = MatchScraper(list)
     data = scr.crawl()
-    print(type(json.dumps(data[0])))
+    print(data[0]['url'])
+
 if __name__ == "__main__":
     main()
