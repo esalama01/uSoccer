@@ -218,6 +218,14 @@ class SpadlConverter:
             )
         return self.combined_df
 
+    def save(self, path = "../data/spadl"):
+        self.combined_df.to_parquet(
+            path,
+            engine='pyarrow',
+            compression='snappy',
+            partition_cols=['game_id']
+        )
+
 def main():
     list = ["https://www.whoscored.com/matches/1914256/live/spain-laliga-2025-2026-real-madrid-athletic-club", "https://www.whoscored.com/matches/1914251/live/spain-laliga-2025-2026-sevilla-real-madrid"]
     scr = MatchScraper(list)
@@ -225,6 +233,7 @@ def main():
     dataa_list = data
     cv = SpadlConverter(data_list = dataa_list)
     dff = cv.parse()
+    cv.save()
     print(dff)
 
 if __name__ == "__main__":
