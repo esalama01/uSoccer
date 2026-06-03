@@ -183,6 +183,13 @@ class SpadlConverter:
             url = data_point['url']
             data = data_point['data']
             home_team_id = int(data['home']['teamId'])
+            home_team_name = (data['home']['name'])
+            away_team_id = int(data['away']['teamId'])
+            away_team_name = (data['away']['name'])
+            teams = {
+                home_team_id: home_team_name,
+                away_team_id: away_team_name
+            }
             id,league,season = (get_infos(url))
             temp_file = tempfile.NamedTemporaryFile(mode = 'w', suffix = '.json', delete = False)
             temp_path = temp_file.name
@@ -204,7 +211,7 @@ class SpadlConverter:
             df_spadl['player_id'] = df_spadl['player_id'].apply(lambda x: int(x))
             df_spadl['player_id'] = df_spadl['player_id'].apply(lambda x: str(x))
             df_spadl['player_name'] = df_spadl['player_id'].map(players_names)
-
+            df_spadl['team_name'] = df_spadl['team_id'].map(teams)
 
 def main():
     list = ["https://www.whoscored.com/matches/1914256/live/spain-laliga-2025-2026-real-madrid-athletic-club"]
