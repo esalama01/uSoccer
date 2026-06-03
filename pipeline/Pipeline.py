@@ -165,9 +165,9 @@ class LeagueScraper(MatchScraper):
     #def save_data(self): #--> Polymorph behavior
 
 def get_infos(url):
-    pattern = re.compile(r'^[^-]+-(.+?)-(\d{4}-\d{4})')
+    pattern = re.compile(r'matches/(\d+)/.*?/[^-]+-(.+?)-(\d{4}-\d{4})')
     match = pattern.search(url)
-    id, league, season = "", ""
+    id, league, season = "", "",""
     if match:
         id, league, season = match.group(1), match.group(2),match.group(3)
     return id, league, season
@@ -212,12 +212,20 @@ class SpadlConverter:
             df_spadl['player_id'] = df_spadl['player_id'].apply(lambda x: str(x))
             df_spadl['player_name'] = df_spadl['player_id'].map(players_names)
             df_spadl['team_name'] = df_spadl['team_id'].map(teams)
+            self.combined_df = pd.concat(
+                [self.combined_df, df_spadl],
+                ignore_index=True
+            )
+        return self.combined_df
 
 def main():
-    list = ["https://www.whoscored.com/matches/1914256/live/spain-laliga-2025-2026-real-madrid-athletic-club"]
+    list = ["https://www.whoscored.com/matches/1914256/live/spain-laliga-2025-2026-real-madrid-athletic-club", "https://www.whoscored.com/matches/1914251/live/spain-laliga-2025-2026-sevilla-real-madrid"]
     scr = MatchScraper(list)
     data = scr.crawl()
-    print(data[0]['url'])
+    dataa_list = data
+    cv = SpadlConverter(data_list = dataa_list)
+    dff = cv.parse()
+    print(dff)
 
 if __name__ == "__main__":
     main()
