@@ -9,6 +9,7 @@ from socceraction.data.opta.parsers import WhoScoredParser
 from socceraction.spadl.opta import convert_to_actions
 from socceraction.data.opta.loader import _eventtypesdf
 from socceraction.spadl import config as spadlconfig
+#import time
 
 class MatchScraper: # A specific crawler that is designed to be compatible with whoscored's html.
     def __init__(self, base_urls):
@@ -41,7 +42,7 @@ class MatchScraper: # A specific crawler that is designed to be compatible with 
         return all_match_data
 
 class LeagueScraper(MatchScraper):
-    def __init__(self, league_name, league_season, country = None): #league season must be in (xxxx-yyyy) format
+    def __init__(self, league_name, league_season, country = None): #league season must be in (xxxx/yyyy) format
         #It's much better if the league country was provided.
         season_pattern = r"^(\d{4})/\d{4}$"
         name_pattern = r""
@@ -52,9 +53,11 @@ class LeagueScraper(MatchScraper):
         self.name = league_name
         self.season = league_season
         self.country = country
+        self.session = requests.Session(impersonate="chrome120")
         super().__init__(base_urls=[])
 
     def all_leagues(self):#Scrape whoscored.com
+        new_list = []
         url = "https://www.whoscored.com"
         headers = {
             "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -63,19 +66,16 @@ class LeagueScraper(MatchScraper):
             "referer": "https://www.google.com/"
         }
         try:
-            response = requests.get(url,headers = headers, impersonate = "chrome120", timeout = 30)
+            response = self.session.get(url,headers = headers, impersonate = "chrome120", timeout = 30)
             soup = BeautifulSoup(response.text, 'html.parser')
             element = soup.select_one('script:-soup-contains("var allRegions")')
-            raw_text = element.text.split("var allRegion= ")[0].strip().replace("var allRegions = ","")
-            txtt = raw_text.split(",\n")
-            new_list = []
-            for element in txtt:
-                new_list.append(json5.loads(element))
-            return new_list
+            raw_text = element.text.split("var allRegion= ")[0].strip()
+            raw_text = raw_text.replace("var allRegions = ","").strip()
+            raw_text = raw_text.rstrip(";, \n")
+            new_list = json5.loads(raw_text)
         except Exception as e:
             print(f"(!) Connection/Parsing error: {e}")
-            return None
-
+        return new_list
     def get_league(self):  # scrapes whoscored.com -> Gets the leagues ids and names and urls out of it -> For each league it gets the years and the stage ids out of it and saves all of this in a json file named dict.json
         leagues = self.all_leagues()
         url = ""
@@ -99,7 +99,7 @@ class LeagueScraper(MatchScraper):
 
     def get_fixtures(self):
         url = self.get_league()
-        if url is None:
+        if url is  None:
             raise ValueError("Couldn't scrape whoscored.")
 
         full_url = "https://www.whoscored.com" + url
@@ -110,19 +110,23 @@ class LeagueScraper(MatchScraper):
             "accept-language": "en-US,en;q=0.9",
             "referer": "https://www.google.com/"
         }
-
-        res = requests.get(full_url, headers=headers,impersonate="chrome120")
-        soup = BeautifulSoup(res.text, 'html.parser')
-        full = soup.find(attrs={"id": "seasons", "name": "seasons"})
-        listt = [x for x in full.contents if x != '\n']
-        dictt = {} #A dictionary containing year : fixtures link. I will use the fixtures link to scrape the data out of it. Might store the resulting dictionary in a file later.
-        for element in listt:
-            link = "https://www.whoscored.com" + element['value']
-            res1 = requests.get(link, headers=headers, impersonate="chrome120")
-            soup1 = BeautifulSoup(res1.text, 'html.parser')
-            fixtures = soup1.find(attrs={"id": "link-fixtures"})
-            new_element = {element.text: fixtures['href']}
-            dictt.update(new_element)
+        res = self.session.get(full_url, headers=headers,impersonate="chrome120")
+        dictt = {}
+        if res.status_code == 200:
+            soup = BeautifulSoup(res.text, 'html.parser')
+            full = soup.find(attrs = {"id" :"seasons","name":"seasons"})
+            conts = full.contents
+            listt = [x for x in conts if x != '\n']
+            #A dictionary containing year : fixtures link. I will use the fixtures link to scrape the data out of it. Might store the resulting dictionary in a file later.
+            for element in listt:
+                link = "https://www.whoscored.com" + element['value']
+                res1 = self.session.get(link, headers=headers, impersonate="chrome120")
+                soup1 = BeautifulSoup(res1.text, 'html.parser')
+                fixtures = soup1.find(attrs={"id": "link-fixtures"})
+                new_element = {element.text: fixtures['href']}
+                dictt.update(new_element)
+        else:
+            raise ValueError("nada")
         return dictt
 
     def get_matches(self): #Returns the list of the ids for the whole season.
@@ -177,7 +181,6 @@ class SpadlConverter:
         self.data_list = data_list
         self.combined_df = combined_df
 
-
     def parse(self):
         for data_point in self.data_list: #data point is in the format data,url of the match.
             url = data_point['url']
@@ -226,12 +229,25 @@ class SpadlConverter:
             partition_cols=['game_id']
         )
 
+class ActionConverter:
+    def __init__(self,read_path = "../data/spadl", columns = None):
+        self.data = pd.read_parquet(
+            read_path,
+            engine='pyarrow',
+            columns = columns
+        )
+        if self.data is not None:
+            print(f"The data of {len(self.data)} games loaded.")
+
+
+
+
 def main():
     list = ["https://www.whoscored.com/matches/1914256/live/spain-laliga-2025-2026-real-madrid-athletic-club", "https://www.whoscored.com/matches/1914251/live/spain-laliga-2025-2026-sevilla-real-madrid"]
     scr = MatchScraper(list)
-    data = scr.crawl()
-    dataa_list = data
-    cv = SpadlConverter(data_list = dataa_list)
+    lg = LeagueScraper("laliga","2025/2026","spain")
+    data = lg.get_data()
+    cv = SpadlConverter(data_list = data)
     dff = cv.parse()
     cv.save()
     print(dff)
