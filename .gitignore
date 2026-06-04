@@ -13,7 +13,7 @@ playwright.config.js
 example.spec.js
 driver_fixing.lock
 
-data/raw/*
+data/events/*
 data/spadl/*
 .idea/
 .venv/
@@ -23,3 +23,4 @@ converter/src/mods.py
 parquet.py
 analytics/data/
 uSoccer_dataset.parquet/
+data/game_state data/*
