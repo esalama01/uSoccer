@@ -268,28 +268,37 @@ class GstatesConverter:
         if self.data is not None:
             print(f"The data of {len(self.data)} games loaded.")
 
-    def convert_to_gamestate(self,nbr_of_previous_actions = 3, normalize = True): #Normalization stands for performing all action in the same playing direction
-        gs = fs.gamestates(self.data, nb_prev_actions=nbr_of_previous_actions)
+    def convert_to_gamestate(self,match_data,home_team,nbr_of_previous_actions = 3, normalize = True): #Normalization stands for performing all action in the same playing direction
+        gs = fs.gamestates(match_data, nb_prev_actions=nbr_of_previous_actions)
         if normalize:
-            gamestates = fs.play_left_to_right(gs, self.home_team_id)
+            gamestates = fs.play_left_to_right(gs, home_team)
         return gamestates
 
-    def compute_features(self, features = features_list):
-        gs = self.convert_to_gamestate()
+    def compute_features(self,match_data,home_team, features = features_list):
+        gs = self.convert_to_gamestate(match_data, home_team)
         X = pd.concat([fn(gs) for fn in features], axis=1)
-        X = pd.concat([X, self.data['game_id']], axis=1)
+        X = pd.concat([X, match_data['game_id']], axis=1)
         return X
-    def compute_labels(self, labels = labels_list):
-        Y = pd.concat([fn(self.data) for fn in labels], axis=1)
-        Y = pd.concat([Y, self.data['game_id']], axis=1)
+    def compute_labels(self,match_data, labels = labels_list):
+        Y = pd.concat([fn(match_data) for fn in labels], axis=1)
+        Y = pd.concat([Y, match_data['game_id']], axis=1)
         return Y
     def convert(self, features = features_list, labels = labels_list):
-        X = self.compute_features()
-        Y = self.compute_labels()
-        result = pd.merge(X, Y, on='game_id')
+        all_features = []
+        all_labels = []
+        for game_id, game_data in self.data.groupby('game_id'):
+            home_team_id = game_data['team_id'].values[0]
+            X = self.compute_features(game_data, home_team_id)
+            Y = self.compute_labels(game_data)
+            all_features.append(X)
+            all_labels.append(Y)
+        X_final = pd.concat(all_features)
+        Y_final = pd.concat(all_labels)
+        result = pd.concat([X_final, Y_final],axis = 1)
+        result = result.loc[:, ~result.columns.duplicated()].copy()
         return result
 
-    def save(self, path="../data/game_state data"):
+    def save(self, path="../data/game_states"):
         res = self.convert()
         res.to_parquet(
             path,
@@ -301,12 +310,14 @@ class GstatesConverter:
 def main():
     list = ["https://www.whoscored.com/matches/1914256/live/spain-laliga-2025-2026-real-madrid-athletic-club", "https://www.whoscored.com/matches/1914251/live/spain-laliga-2025-2026-sevilla-real-madrid"]
     scr = MatchScraper(list)
-    lg = LeagueScraper("laliga","2025/2026","spain")
-    data = lg.get_data()
+    data = scr.crawl()
+    #lg = LeagueScraper("laliga","2025/2026","spain")
+    #data = lg.get_data()
     cv = SpadlConverter(data_list = data)
     dff = cv.parse()
-    cv.save()
-    print(dff)
 
+    cv.save()
+    gss = GstatesConverter()
+    gss.save()
 if __name__ == "__main__":
     main()
