@@ -282,8 +282,12 @@ class GstatesConverter:
         Y = pd.concat([fn(self.data) for fn in labels], axis=1)
         return Y
     def convert(self, features = features_list, labels = labels_list):
-
-
+        X = self.compute_features()
+        Y = self.compute_labels()
+        X['temp_id'] = range(len(X))
+        Y['temp_id'] = range(len(Y))
+        result = pd.merge(X, Y, on='temp_id').drop(columns=['temp_id'])
+        return result
 def main():
     list = ["https://www.whoscored.com/matches/1914256/live/spain-laliga-2025-2026-real-madrid-athletic-club", "https://www.whoscored.com/matches/1914251/live/spain-laliga-2025-2026-sevilla-real-madrid"]
     scr = MatchScraper(list)
