@@ -277,17 +277,27 @@ class GstatesConverter:
     def compute_features(self, features = features_list):
         gs = self.convert_to_gamestate()
         X = pd.concat([fn(gs) for fn in features], axis=1)
+        X = pd.concat([X, self.data['game_id']], axis=1)
         return X
     def compute_labels(self, labels = labels_list):
         Y = pd.concat([fn(self.data) for fn in labels], axis=1)
+        Y = pd.concat([Y, self.data['game_id']], axis=1)
         return Y
     def convert(self, features = features_list, labels = labels_list):
         X = self.compute_features()
         Y = self.compute_labels()
-        X['temp_id'] = range(len(X))
-        Y['temp_id'] = range(len(Y))
-        result = pd.merge(X, Y, on='temp_id').drop(columns=['temp_id'])
+        result = pd.merge(X, Y, on='game_id')
         return result
+
+    def save(self, path="../data/game_state data"):
+        res = self.convert()
+        res.to_parquet(
+            path,
+            engine='pyarrow',
+            compression='snappy',
+            partition_cols=['game_id']
+        )
+
 def main():
     list = ["https://www.whoscored.com/matches/1914256/live/spain-laliga-2025-2026-real-madrid-athletic-club", "https://www.whoscored.com/matches/1914251/live/spain-laliga-2025-2026-sevilla-real-madrid"]
     scr = MatchScraper(list)
