@@ -9,6 +9,8 @@ from socceraction.data.opta.parsers import WhoScoredParser
 from socceraction.spadl.opta import convert_to_actions
 from socceraction.data.opta.loader import _eventtypesdf
 from socceraction.spadl import config as spadlconfig
+import socceraction.vaep.features as fs
+import socceraction.vaep.labels as lab
 #import time
 
 class MatchScraper: # A specific crawler that is designed to be compatible with whoscored's html.
@@ -229,17 +231,57 @@ class SpadlConverter:
             partition_cols=['game_id']
         )
 
-class ActionConverter:
-    def __init__(self,read_path = "../data/spadl", columns = None):
+class GstatesConverter:
+    features_list = [
+        fs.actiontype,
+        fs.actiontype_onehot,
+        fs.bodypart,
+        fs.bodypart_onehot,
+        fs.result,
+        fs.result_onehot,
+        fs.goalscore,
+        fs.startlocation,
+        fs.endlocation,
+        fs.movement,
+        fs.space_delta,
+        fs.startpolar,
+        fs.endpolar,
+        fs.team,
+        fs.time,
+        fs.time_delta
+    ]
+    labels_list = [
+        lab.scores,
+        lab.concedes,
+        lab.goal_from_shot
+    ]
+    def __init__(self,read_path = "../data/spadl", columns = None, filters = None):
         self.data = pd.read_parquet(
             read_path,
             engine='pyarrow',
-            columns = columns
+            filters = filters #To filter out games by their ids.(ex: filters=[('game_id', '=', 1914251)])
         )
+        cat_cols = self.data.select_dtypes(include=['category']).columns
+        self.data[cat_cols] = self.data[cat_cols].astype('object') #converting game_id to string.
+        unique_teams = self.data['team_id'].unique()
+        self.home_team_id = unique_teams[0]
         if self.data is not None:
             print(f"The data of {len(self.data)} games loaded.")
 
+    def convert_to_gamestate(self,nbr_of_previous_actions = 3, normalize = True): #Normalization stands for performing all action in the same playing direction
+        gs = fs.gamestates(self.data, nb_prev_actions=nbr_of_previous_actions)
+        if normalize:
+            gamestates = fs.play_left_to_right(gs, self.home_team_id)
+        return gamestates
 
+    def compute_features(self, features = features_list):
+        gs = self.convert_to_gamestate()
+        X = pd.concat([fn(gs) for fn in features], axis=1)
+        return X
+    def compute_labels(self, labels = labels_list):
+        Y = pd.concat([fn(self.data) for fn in labels], axis=1)
+        return Y
+    def convert(self, features = features_list, labels = labels_list):
 
 
 def main():
