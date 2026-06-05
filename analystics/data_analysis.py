@@ -7,7 +7,8 @@ from matplotlib import cm
 import numpy as np
 import json
 import xgboost
-from sklearn.model_selection import train_test_split
+#from sklearn.model_selection import train_test_split
+import os
 
 with open('/home/esalama/PycharmProjects/uSoccer/analystics/plot_config.json', 'r') as file:
     config = json.load(file)
@@ -243,14 +244,13 @@ class Plots:
         df_passes = df_passes.dropna(subset=['pass_recipient_name']).copy()
         # In this type of plot, both the size and color (i.e. value) mean the same: number of passes
         self.player_pass_count = df_passes.groupby("player_name").size().to_frame("num_passes")
-        self.player_pass_value = df_passes.groupby("player_name").size().to_frame("pass_value")
+        self.player_pass_value = df_passes.groupby("player_name")['vaep_value'].sum().to_frame("pass_value")
 
         # 'pair_key' combines the names of the passer and receiver of each pass (sorted alphabetically)
         df_passes["pair_key"] = df_passes.apply(
             lambda x: "_".join(sorted([x["player_name"], x["pass_recipient_name"]])), axis=1)
         self.pair_pass_count = df_passes.groupby("pair_key").size().to_frame("num_passes")
-        self.pair_pass_value = df_passes.groupby("pair_key").size().to_frame("pass_value")
-
+        self.pair_pass_value = df_passes.groupby("pair_key")['vaep_value'].sum().to_frame("pass_value")
         # Average pass origin's coordinates for each player
         df_passes["origin_pos_x"] = df_passes['start_x']
         df_passes["origin_pos_y"] = df_passes['start_y']
@@ -258,7 +258,7 @@ class Plots:
 
 
 class Metrics:
-    def __init__(self,read_path =  "../data/spadl", columns = None, filters = None):
+    def __init__(self,read_path =  "../data/game_states", columns = None, filters = None):
         self.data = pd.read_parquet(
             read_path,
             engine='pyarrow',
@@ -273,7 +273,7 @@ class Metrics:
         return Y
 
 class VAEP(Metrics):
-    def __init__(self,read_path =  "../data/spadl", columns = None, filters = None):
+    def __init__(self,read_path =  "../data/game_states", columns = None, filters = None):
         super().__init__(read_path, columns, filters)
         self.target_cols = ['scores', 'concedes']
         self.model_scoring = None
@@ -294,12 +294,53 @@ class VAEP(Metrics):
         prob_scores = self.model_scoring.predict_proba(X_test)[:, 1]
         prob_concedes = self.model_conceding.predict_proba(X_test)[:, 1]
         predictions = pd.DataFrame({
+            'game_id': self.data.loc[X_test.index, 'game_id'],
             'prob_scores': prob_scores,
             'prob_concedes': prob_concedes
         }, index=X_test.index)
-        self.data.loc[predictions.index, 'prob_scores'] = predictions['prob_scores']
-        self.data.loc[predictions.index, 'prob_concedes'] = predictions['prob_concedes']
         return predictions
+    def _process_single_game(self, game_id, all_predictions, spadl_file_path, output_dir):
+        game_preds = all_predictions[all_predictions['game_id'] == game_id]
+
+        # 2. Load the SPADL data for this specific game
+        spadl_df = pd.read_parquet(
+            spadl_file_path,
+            engine='pyarrow',
+            filters=[('game_id', '=', game_id)]
+        )
+
+        # 3. Merge the probabilities using the shared index
+        spadl_df['prob_scores'] = game_preds['prob_scores']
+        spadl_df['prob_concedes'] = game_preds['prob_concedes']
+
+        # 4. Calculate VAEP Deltas
+        prev_prob_scores = spadl_df['prob_scores'].shift(1, fill_value=0)
+        prev_prob_concedes = spadl_df['prob_concedes'].shift(1, fill_value=0)
+
+        spadl_df['offensive_value'] = spadl_df['prob_scores'] - prev_prob_scores
+        spadl_df['defensive_value'] = -(spadl_df['prob_concedes'] - prev_prob_concedes)
+        spadl_df['vaep_value'] = spadl_df['offensive_value'] + spadl_df['defensive_value']
+
+        # 5. Save the enriched data
+        save_path = os.path.join(output_dir, f"spadl_vaep_{game_id}.parquet")
+        spadl_df.to_parquet(save_path, engine='pyarrow')
+        print(f"  -> Saved: spadl_vaep_{game_id}.parquet")
+
+    def process_all_games(self, all_predictions, spadl_file_path, output_dir):
+        """Automatically finds all unique games and processes them."""
+        # Automatically detect the games
+        unique_games = all_predictions['game_id'].unique()
+        print(f"Starting pipeline: Found {len(unique_games)} games to process.")
+
+        # Ensure the output directory exists once
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Run the loop internally
+        for game_id in unique_games:
+            self._process_single_game(game_id, all_predictions, spadl_file_path, output_dir)
+
+        print("Pipeline complete! All games have been enriched with VAEP.")
+
 
 def main():
     plotter = Plots(filters = [('game_id', '=', 1914251)])
