@@ -24,9 +24,21 @@ class Plots:
         self.data[cat_cols] = self.data[cat_cols].astype('object')  # converting game_id to string.
         unique_teams = self.data['team_id'].unique()
         self.home_team_id = unique_teams[0]
+        self.player_position = None
+        self.pair_pass_value = None
+        self.pair_pass_count = None
+        self.player_pass_value = None
+        self.player_pass_count = None
+        self.data['pass_recipient_name'] = self.data['player_name'].shift(-1)
+        self.data['next_team_name'] = self.data['team_name'].shift(-1)
         if self.data is not None:
             print(f"The data of {len(self.data)} games loaded.")
-            
+
+    def change_range(self,value, old_range, new_range):
+        '''
+        Convert a value from one range to another one, maintaining ratio.
+        '''
+        return ((value - old_range[0]) / (old_range[1] - old_range[0])) * (new_range[1] - new_range[0]) + new_range[0]
 
     def point_to_meters(self,p):
         '''
@@ -115,7 +127,7 @@ class Plots:
         plt.axis('off')
         return ax
 
-    def draw_pass_map(ax, player_position,
+    def draw_pass_map(self,ax, player_position,
                       player_pass_count, player_pass_value, pair_pass_count, pair_pass_value, title="", legend="",
                       max_player_count=None, max_player_value=None, max_pair_count=None, max_pair_value=None):
         """
@@ -165,7 +177,7 @@ class Plots:
                 num_passes = row["num_passes"]
                 pass_value = row["pass_value"]
 
-                line_width = _change_range(num_passes, (0, max_pair_count),
+                line_width = self.change_range(num_passes, (0, max_pair_count),
                                            (config["min_edge_width"], config["max_edge_width"]))
                 norm = Normalize(vmin=0, vmax=max_pair_value)
                 edge_cmap = cm.get_cmap(config["nodes_cmap"])
@@ -184,7 +196,7 @@ class Plots:
             num_passes = row["num_passes"]
             pass_value = row["pass_value"]
 
-            marker_size = _change_range(num_passes, (0, max_player_count),
+            marker_size = self.change_range(num_passes, (0, max_player_count),
                                         (config["min_node_size"], config["max_node_size"]))
             norm = Normalize(vmin=0, vmax=max_player_value)
             node_cmap = cm.get_cmap(config["nodes_cmap"])
@@ -197,7 +209,7 @@ class Plots:
                         path_effects=[pe.withStroke(linewidth=2, foreground=background_color)])
 
         # Step 3: Extra information shown on the plot
-        ax.annotate("@SergioMinuto90", xy=(0.99 * width, 0.02 * height),
+        ax.annotate("@esalama01", xy=(0.99 * width, 0.02 * height),
                     ha="right", va="bottom", zorder=7, fontsize=10, color=config["lines_color"])
 
         if legend:
@@ -209,13 +221,55 @@ class Plots:
 
         return ax
 
-    def prepare_data(self):
+    def prepare_data(self, period, num_minutes, team_name):
+        """
+                Prepares the five pandas DataFrames that 'draw_pass_map' needs.
+                """
+        # We select all successful passes done by the selected team before the minute
+
+        df_passes = self.data[(self.data.type_name == "pass") &
+                                   (self.data.result_name == 'success') &
+                                   (self.data.team_name == team_name) &
+                                   (self.data.period_id == period) &
+                                   (self.data.time_seconds < num_minutes * 60)].copy()
+
+        df_passes['pass_recipient_name'] = np.where(
+            df_passes['team_name'] == df_passes['next_team_name'],
+            df_passes['pass_recipient_name'],
+            np.nan
+        )
+        df_passes = df_passes.dropna(subset=['pass_recipient_name']).copy()
+        # In this type of plot, both the size and color (i.e. value) mean the same: number of passes
+        self.player_pass_count = df_passes.groupby("player_name").size().to_frame("num_passes")
+        self.player_pass_value = df_passes.groupby("player_name").size().to_frame("pass_value")
+
+        # 'pair_key' combines the names of the passer and receiver of each pass (sorted alphabetically)
+        df_passes["pair_key"] = df_passes.apply(
+            lambda x: "_".join(sorted([x["player_name"], x["pass_recipient_name"]])), axis=1)
+        self.pair_pass_count = df_passes.groupby("pair_key").size().to_frame("num_passes")
+        self.pair_pass_value = df_passes.groupby("pair_key").size().to_frame("pass_value")
+
+        # Average pass origin's coordinates for each player
+        df_passes["origin_pos_x"] = df_passes['start_x']
+        df_passes["origin_pos_y"] = df_passes['start_y']
+        self.player_position = df_passes.groupby("player_name").agg({"origin_pos_x": "median", "origin_pos_y": "median"})
+
 
 
 def main():
-    ax = Plots()
-    ax.draw_pitch()
-    plt.savefig("first.png".format(ax.draw_pitch()))
-
+    plotter = Plots(filters = [('game_id', '=', 1914251)])
+    plotter.prepare_data(period=2, num_minutes=45, team_name="Real Madrid")
+    ax = plotter.draw_pitch()
+    plotter.draw_pass_map(
+        ax=ax,
+        player_position=plotter.player_position,
+        player_pass_count=plotter.player_pass_count,
+        player_pass_value=plotter.player_pass_value,
+        pair_pass_count=plotter.pair_pass_count,
+        pair_pass_value=plotter.pair_pass_value,
+        title="Passing Network - 1st Half"
+    )
+    plt.savefig("first_pass_map.png", bbox_inches='tight')
+    print("Pitch saved successfully!")
 if __name__ == "__main__":
     main()
