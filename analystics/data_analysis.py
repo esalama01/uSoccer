@@ -27,6 +27,7 @@ class Plots:
         self.data[cat_cols] = self.data[cat_cols].astype('object')  # converting game_id to string.
         unique_teams = self.data['team_id'].unique()
         self.home_team_id = unique_teams[0]
+        self.data = self.data.sort_values('action_id')
         self.player_position = None
         self.pair_pass_value = None
         self.pair_pass_count = None
