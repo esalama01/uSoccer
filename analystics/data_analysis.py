@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 import numpy as np
 import json
+import xgboost
+from sklearn.model_selection import train_test_split
 
 with open('/home/esalama/PycharmProjects/uSoccer/analystics/plot_config.json', 'r') as file:
     config = json.load(file)
@@ -254,6 +256,39 @@ class Plots:
         df_passes["origin_pos_y"] = df_passes['start_y']
         self.player_position = df_passes.groupby("player_name").agg({"origin_pos_x": "median", "origin_pos_y": "median"})
 
+
+class Metrics:
+    def __init__(self,read_path =  "../data/spadl", columns = None, filters = None):
+        self.data = pd.read_parquet(
+            read_path,
+            engine='pyarrow',
+            columns = columns,
+            filters=filters  # To filter out games by their ids.(ex: filters=[('game_id', '=', 1914251)])
+        )
+    def select_features(self):
+        X = self.data.drop(columns=['scores', 'concedes','goal_from_shot'])
+        return X
+    def select_labels(self):
+        Y = self.data[['scores', 'concedes','goal_from_shot']]
+        return Y
+
+class VAEP(Metrics):
+    def __init__(self,read_path =  "../data/spadl", columns = None, filters = None):
+        super().__init__(read_path, columns, filters)
+        self.target_cols = ['scores', 'concedes']
+        self.model_scoring = None
+        self.model_conceding = None
+    def train(self):
+        X = self.select_features(target_cols=['scores', 'concedes', 'goal_from_shot'])
+        Y = self.select_labels(target_cols=self.target_cols)
+        self.model_scoring = xgboost.XGBClassifier(
+            n_estimators=50, max_depth=3, n_jobs=-1, verbosity=1, enable_categorical=True
+        )
+        self.model_conceding = xgboost.XGBClassifier(
+            n_estimators=50, max_depth=3, n_jobs=-1, verbosity=1, enable_categorical=True
+        )
+        self.model_scoring.fit(X, Y['scores'])
+        self.model_conceding.fit(X, Y['concedes'])
 
 
 def main():
