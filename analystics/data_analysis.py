@@ -290,6 +290,16 @@ class VAEP(Metrics):
         self.model_scoring.fit(X, Y['scores'])
         self.model_conceding.fit(X, Y['concedes'])
 
+    def predict(self, X_test):
+        prob_scores = self.model_scoring.predict_proba(X_test)[:, 1]
+        prob_concedes = self.model_conceding.predict_proba(X_test)[:, 1]
+        predictions = pd.DataFrame({
+            'prob_scores': prob_scores,
+            'prob_concedes': prob_concedes
+        }, index=X_test.index)
+        self.data.loc[predictions.index, 'prob_scores'] = predictions['prob_scores']
+        self.data.loc[predictions.index, 'prob_concedes'] = predictions['prob_concedes']
+        return predictions
 
 def main():
     plotter = Plots(filters = [('game_id', '=', 1914251)])
