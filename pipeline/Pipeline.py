@@ -430,21 +430,34 @@ class GstatesConverter:
         Y = pd.concat([fn(match_data) for fn in labels], axis=1)
         Y = pd.concat([Y, match_data['game_id']], axis=1)
         return Y
-    def convert(self, features = features_list, labels = labels_list):
+
+    def convert(self, features=features_list, labels=labels_list):
         all_features = []
         all_labels = []
+        all_is_shot = []  # List to hold our new shot masks
+
         for game_id, game_data in self.data.groupby('game_id'):
             home_team_id = game_data['team_id'].values[0]
+
             X = self.compute_features(game_data, home_team_id)
             Y = self.compute_labels(game_data)
+
+            # Create the 'is_shot' column (1 if it's a shot of any kind, 0 otherwise)
+            is_shot = game_data['type_name'].str.contains('shot', case=False, na=False).astype(int)
+            is_shot.name = 'is_shot'
+
             all_features.append(X)
             all_labels.append(Y)
+            all_is_shot.append(is_shot)
+
         X_final = pd.concat(all_features)
         Y_final = pd.concat(all_labels)
-        result = pd.concat([X_final, Y_final],axis = 1)
-        result = result.loc[:, ~result.columns.duplicated()].copy()
-        return result
+        is_shot_final = pd.concat(all_is_shot)
 
+        result = pd.concat([X_final, Y_final, is_shot_final], axis=1)
+        result = result.loc[:, ~result.columns.duplicated()].copy()
+
+        return result
     def save(self, path="../data/game_states"):
         res = self.convert()
         res.to_parquet(
@@ -455,16 +468,16 @@ class GstatesConverter:
         )
 
 def main():
-    #list = ["https://www.whoscored.com/matches/1914256/live/spain-laliga-2025-2026-real-madrid-athletic-club", "https://www.whoscored.com/matches/1914251/live/spain-laliga-2025-2026-sevilla-real-madrid"]
-    #scr = MatchScraper(list)
-    #data = scr.crawl()
-    lg = LeagueScraper("laliga","2025/2026","spain")
-    lg.save()
+    list = ["https://www.whoscored.com/matches/1914256/live/spain-laliga-2025-2026-real-madrid-athletic-club", "https://www.whoscored.com/matches/1914251/live/spain-laliga-2025-2026-sevilla-real-madrid"]
+    scr = MatchScraper(list)
+    data = scr.crawl()
+    #lg = LeagueScraper("laliga","2025/2026","spain")
+    #lg.save()
     #cv = SpadlConverter(data_list = data)
     #dff = cv.parse()
 
     #cv.save()
-    #gss = GstatesConverter()
-    #gss.save()
+    gss = GstatesConverter()
+    gss.save()
 if __name__ == "__main__":
     main()
