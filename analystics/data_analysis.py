@@ -485,6 +485,33 @@ class PlayerChemistry(Metrics):
             oi_total += self.actual_offensive_impact(actions, player_id, gid)
         return (oi_total * 90) / total_minutes
 
+    def responsibility_share(self, player1_pos, player2_pos, opponent_pos):
+        position_map = {
+            'GK': (2, 0),
+            'RB': (4, 1), 'RWB': (4, 2),
+            'CB': (2, 1),
+            'LB': (0, 1), 'LWB': (0, 2),
+            'CDM': (2, 2), 'DM': (2, 2),
+            'CM': (2, 3),
+            'CAM': (2, 3.5),
+            'RM': (4, 3), 'LM': (0, 3),
+            'RW': (4, 4), 'LW': (0, 4),
+            'SS': (2, 4.25),
+            'CF': (2, 4.5),
+            'ST': (2, 5),
+            'DF': (2, 1), 'MD': (2, 3), 'FW': (2, 5)
+        }
+
+        default_pos = (2, 2)
+        pos1 = position_map.get(player1_pos, default_pos)
+        pos2 = position_map.get(player2_pos, default_pos)
+        opp = position_map.get(opponent_pos, default_pos)
+
+        dist1 = max(euclidean(pos1, opp), 0.1)
+        dist2 = max(euclidean(pos2, opp), 0.1)
+
+        return (1 / (dist1 + 1e-5) + 1 / (dist2 + 1e-5)) / 2
+
 
 def main():
     plotter = Plots(filters = [('game_id', '=', 1914251)])
