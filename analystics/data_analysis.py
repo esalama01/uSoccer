@@ -410,6 +410,21 @@ class PlayerChemistry(Metrics):
         current_action, next_action = interaction
         return current_action["vaep_value"] + next_action["vaep_value"]
 
+    def get_interactions(self, actions, game_id, player_before, player_after):
+        desired_actions = ['receival', 'pass', 'cross', 'dribble', 'take-on', 'shot']
+
+        game_actions = actions[actions['game_id'] == game_id]
+        filtered = game_actions[game_actions['type_name'].isin(desired_actions)]
+
+        interactions = []
+
+        for i in range(len(filtered) - 1):
+            current_action = filtered.iloc[i]
+            next_action = filtered.iloc[i + 1]
+            if (current_action["player_id"] == player_before) and (next_action["player_id"] == player_after):
+                interactions.append((current_action, next_action))
+
+        return interactions
 
 
 
