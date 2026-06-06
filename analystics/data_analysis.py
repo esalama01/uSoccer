@@ -10,6 +10,8 @@ import xgboost
 #from sklearn.model_selection import train_test_split
 import os
 from tqdm import tqdm
+from ast import literal_eval
+from scipy.spatial.distance import euclidean
 
 with open('/home/esalama/PycharmProjects/uSoccer/analystics/plot_config.json', 'r') as file:
     config = json.load(file)
@@ -410,11 +412,10 @@ class PlayerChemistry(Metrics):
         current_action, next_action = interaction
         return current_action["vaep_value"] + next_action["vaep_value"]
 
-    def get_interactions(self, actions, game_id, player_before, player_after):
-        desired_actions = ['receival', 'pass', 'cross', 'dribble', 'take-on', 'shot']
+    def get_interactions(self,  player_before, player_after):
+        desired_actions = ['pass', 'cross', 'dribble', 'take-on', 'shot']
 
-        game_actions = actions[actions['game_id'] == game_id]
-        filtered = game_actions[game_actions['type_name'].isin(desired_actions)]
+        filtered = self.data[self.data['type_name'].isin(desired_actions)]
 
         interactions = []
 
@@ -426,9 +427,9 @@ class PlayerChemistry(Metrics):
 
         return interactions
 
-    def joint_offensive_impact(self,actions, game_id, p, q):
-        interactions = self.get_interactions(actions, game_id, p, q)
-        interactions_reverse = self.get_interactions(actions, game_id, q, p)
+    def joint_offensive_impact(self, p, q):
+        interactions = self.get_interactions(p, q)
+        interactions_reverse = self.get_interactions(q, p)
         interactions_sum = 0
         interactions_reverse_sum = 0
 
@@ -440,21 +441,21 @@ class PlayerChemistry(Metrics):
 
         return interactions_sum + interactions_reverse_sum
 
-    def calculate_joi90(self,actions, minutes_df, player1_id, player2_id):
-        df_filtered = actions[actions['player_id'].isin([player1_id, player2_id])]
+    def calculate_joi90(self, minutes_df, player1_name, player2_name): #minutes_df must be retrieved from all the minutes
+        df_filtered = self.data[self.data['player_id'].isin([player1_name, player2_name])]
         games_with_x_and_y = (
             df_filtered.groupby('game_id')['player_id']
-            .apply(lambda x: set([player1_id, player2_id]).issubset(set(x)))
+            .apply(lambda x: {player1_name, player2_name}.issubset(set(x)))
         )
         selected_games = games_with_x_and_y[games_with_x_and_y].index
-        result = actions[actions['game_id'].isin(selected_games)]
+        result = self.data[self.data['game_id'].isin(selected_games)]
         game_ids = result['game_id'].unique().tolist()
 
         total_joi = 0
         total_minutes = 0
 
         for game_id in tqdm(game_ids):
-            joi_match = self.joint_offensive_impact(actions, game_id, player1_id, player2_id)
+            joi_match = self.joint_offensive_impact(player1_name, player2_name)
             minutes = minutes_df[minutes_df['game_id'] == game_id]['minutes_played'].min()
             if minutes:
                 total_joi += joi_match
@@ -462,19 +463,19 @@ class PlayerChemistry(Metrics):
 
         return (total_joi * 90) / total_minutes if total_minutes else 0
 
-    def actual_offensive_impact(self,actions, player_id, game_id):
+    def actual_offensive_impact(self, player_name, game_id):
         offensive_actions = ['pass', 'cross', 'dribble', 'take-on', 'shot']
-        player_actions = actions[(actions['player_id'] == player_id) &
-                                 (actions['game_id'] == game_id) &
-                                 (actions['type_name'].isin(offensive_actions))]
+        player_actions = self.data[(self.data['player_name'] == player_name) &
+                                 (self.data['game_id'] == game_id) &
+                                 (self.data['type_name'].isin(offensive_actions))]
         return player_actions['vaep_value'].sum()
 
-    def expected_offensive_impact(self,actions, player_id, current_game_id, minutes_df):
-        current_game = actions[actions['game_id'] == current_game_id]['game_id'].iloc[0]
-        past_games = actions[(actions['player_id'] == player_id) &
-                             (actions['game_id'] < current_game)]
+    def expected_offensive_impact(self, player_name, current_game_id, minutes_df):
+        current_game = self.data[self.data['game_id'] == current_game_id]['game_id'].iloc[0]
+        past_games = self.data[(self.data['player_name'] == player_name) &
+                             (self.data['game_id'] < current_game)]
 
-        total_minutes = minutes_df[(minutes_df['player_id'] == player_id) &
+        total_minutes = minutes_df[(minutes_df['player_id'] == player_name) &
                                    (minutes_df['game_id'] < current_game)]['minutes_played'].sum()
 
         if total_minutes == 0:
@@ -482,7 +483,7 @@ class PlayerChemistry(Metrics):
 
         oi_total = 0
         for gid in past_games['game_id'].unique():
-            oi_total += self.actual_offensive_impact(actions, player_id, gid)
+            oi_total += self.actual_offensive_impact(player_name, gid)
         return (oi_total * 90) / total_minutes
 
     def responsibility_share(self, player1_pos, player2_pos, opponent_pos):
@@ -512,44 +513,44 @@ class PlayerChemistry(Metrics):
 
         return (1 / (dist1 + 1e-5) + 1 / (dist2 + 1e-5)) / 2
 
-    def joint_defensive_impact(actions, minutes_df, player1_id, player2_id, game_id, player_positions):
-        opponents = actions[(actions['game_id'] == game_id)]['player_id'].unique()
+    def joint_defensive_impact(self,  minutes_df, player1_name, player2_name, game_id, player_positions):
+        opponents = self.data[(self.data['game_id'] == game_id)]['player_id'].unique()
         jdi = 0
 
-        for opponent_id in opponents:
+        for opponent_name in opponents:
             opponent_minutes = minutes_df[
-                (minutes_df['player_id'] == opponent_id) & (minutes_df['game_id'] == game_id)
+                (minutes_df['player_name'] == opponent_name) & (minutes_df['game_id'] == game_id)
                 ]['minutes_played'].sum()
 
             if opponent_minutes == 0:
                 continue
-            if (player1_id == opponent_id or player2_id == opponent_id):
+            if player1_name == opponent_name or player2_name == opponent_name:
                 continue
 
-            actual_oi = actual_offensive_impact(actions, opponent_id, game_id)
-            expected_oi = expected_offensive_impact(actions, opponent_id, game_id, minutes_df)
+            actual_oi = self.actual_offensive_impact(opponent_name, game_id)
+            expected_oi = self.expected_offensive_impact(opponent_name, game_id, minutes_df)
             diff = expected_oi - actual_oi
 
-            pos1 = literal_eval(player_positions.get(player1_id))['code2']
-            pos2 = literal_eval(player_positions.get(player2_id))['code2']
-            if (player_positions.get(opponent_id) == None):
+            pos1 = literal_eval(player_positions.get(player1_name))['code2']
+            pos2 = literal_eval(player_positions.get(player2_name))['code2']
+            if player_positions.get(opponent_name) is None:
                 opponent_pos = None
             else:
-                opponent_pos = literal_eval(player_positions.get(opponent_id))['code2']
+                opponent_pos = literal_eval(player_positions.get(opponent_name))['code2']
 
-            resp = responsibility_share(pos1, pos2, opponent_pos)
+            resp = self.responsibility_share(pos1, pos2, opponent_pos)
 
             jdi += diff * resp
 
         return jdi
 
-    def calculate_jdi90(actions, minutes_df, player1_id, player2_id, game_ids, player_positions):
+    def calculate_jdi90(self, minutes_df, player1_name, player2_name, game_ids, player_positions):
         total_jdi = 0
         total_minutes = 0
 
         for gid in game_ids:
             minutes = minutes_df[
-                (minutes_df['player_id'].isin([player1_id, player2_id])) &
+                (minutes_df['player_id'].isin([player1_name, player2_name])) &
                 (minutes_df['game_id'] == gid)
                 ]['minutes_played']
 
@@ -563,7 +564,7 @@ class PlayerChemistry(Metrics):
             else:
                 continue
 
-            jdi_match = joint_defensive_impact(actions, minutes_df, player1_id, player2_id, gid, player_positions)
+            jdi_match = self.joint_defensive_impact(minutes_df, player1_name, player2_name, gid, player_positions)
             total_jdi += jdi_match
 
         return (total_jdi * 90) / total_minutes if total_minutes else 0
