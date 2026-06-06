@@ -404,10 +404,57 @@ class xG(Metrics):
 
         print("xG Pipeline complete! All games have been enriched.")
 
+def main():
+    plotter = Plots(filters = [('game_id', '=', 1914251)])
+    plotter.prepare_data(period=2, num_minutes=45, team_name="Real Madrid")
+    ax = plotter.draw_pitch()
+    plotter.draw_pass_map(
+        ax=ax,
+        player_position=plotter.player_position,
+        player_pass_count=plotter.player_pass_count,
+        player_pass_value=plotter.player_pass_value,
+        pair_pass_count=plotter.pair_pass_count,
+        pair_pass_value=plotter.pair_pass_value,
+        title="Passing Network - 1st Half"
+    )
+    plt.savefig("first_pass_map.png", bbox_inches='tight')
+    print("Pitch saved successfully!")
+
 class PlayerChemistry(Metrics):
     def __init__(self, read_path="../data/spadl", columns=None, filters=None):
         super().__init__(read_path, columns, filters)
 
+    def generate_minutes_df(self):
+        """
+        Estimates minutes played based on the timestamps of a player's first
+        and last recorded events in a game.
+        """
+        # Group by game and player to find their first and last events
+        minutes_df = self.data.groupby(['game_id', 'player_name']).agg(
+            first_action=('time_seconds', 'min'),
+            last_action=('time_seconds', 'max')
+        ).reset_index()
+
+        # Calculate total seconds played, convert to minutes, and round
+        minutes_df['minutes_played'] = (minutes_df['last_action'] - minutes_df['first_action']) / 60
+        minutes_df['minutes_played'] = minutes_df['minutes_played'].clip(lower=1.0).round()
+
+        minutes_df = minutes_df.rename(columns={'player_name': 'player_id'})
+
+        return minutes_df
+
+    def get_player_coordinates(self, game_id):
+        """Returns a dictionary mapping a player's name to their median (X, Y) coordinates."""
+        game_data = self.data[self.data['game_id'] == game_id]
+
+        # Calculate median positions to find where they actually played
+        coords = game_data.groupby("player_name").agg({
+            "start_x": "median",
+            "start_y": "median"
+        })
+
+        # Convert to a dictionary: {'Kylian Mbappé': (76.8, 34.1), ...}
+        return {row.Index: (row.start_x, row.start_y) for row in coords.itertuples()}
     def extended_vaep(self,interaction):
         current_action, next_action = interaction
         return current_action["vaep_value"] + next_action["vaep_value"]
@@ -486,33 +533,19 @@ class PlayerChemistry(Metrics):
             oi_total += self.actual_offensive_impact(player_name, gid)
         return (oi_total * 90) / total_minutes
 
-    def responsibility_share(self, player1_pos, player2_pos, opponent_pos):
-        position_map = {
-            'GK': (2, 0),
-            'RB': (4, 1), 'RWB': (4, 2),
-            'CB': (2, 1),
-            'LB': (0, 1), 'LWB': (0, 2),
-            'CDM': (2, 2), 'DM': (2, 2),
-            'CM': (2, 3),
-            'CAM': (2, 3.5),
-            'RM': (4, 3), 'LM': (0, 3),
-            'RW': (4, 4), 'LW': (0, 4),
-            'SS': (2, 4.25),
-            'CF': (2, 4.5),
-            'ST': (2, 5),
-            'DF': (2, 1), 'MD': (2, 3), 'FW': (2, 5)
-        }
+    def responsibility_share(self, pos1, pos2, opponent_pos):
+        # If someone doesn't have a position, assign a neutral default to prevent crashes
+        default_pos = (52.5, 34.0)  # Center of a 105x68 pitch
 
-        default_pos = (2, 2)
-        pos1 = position_map.get(player1_pos, default_pos)
-        pos2 = position_map.get(player2_pos, default_pos)
-        opp = position_map.get(opponent_pos, default_pos)
+        pos1 = pos1 if pos1 else default_pos
+        pos2 = pos2 if pos2 else default_pos
+        opp = opponent_pos if opponent_pos else default_pos
 
+        # Calculate spatial distance (ensure we don't divide by zero)
         dist1 = max(euclidean(pos1, opp), 0.1)
         dist2 = max(euclidean(pos2, opp), 0.1)
 
         return (1 / (dist1 + 1e-5) + 1 / (dist2 + 1e-5)) / 2
-
     def joint_defensive_impact(self,  minutes_df, player1_name, player2_name, game_id, player_positions):
         opponents = self.data[(self.data['game_id'] == game_id)]['player_id'].unique()
         jdi = 0
@@ -531,17 +564,12 @@ class PlayerChemistry(Metrics):
             expected_oi = self.expected_offensive_impact(opponent_name, game_id, minutes_df)
             diff = expected_oi - actual_oi
 
-            pos1 = literal_eval(player_positions.get(player1_name))['code2']
-            pos2 = literal_eval(player_positions.get(player2_name))['code2']
-            if player_positions.get(opponent_name) is None:
-                opponent_pos = None
-            else:
-                opponent_pos = literal_eval(player_positions.get(opponent_name))['code2']
+            pos1 = player_positions.get(player1_name)
+            pos2 = player_positions.get(player2_name)
+            opponent_pos = player_positions.get(opponent_name)
 
             resp = self.responsibility_share(pos1, pos2, opponent_pos)
-
             jdi += diff * resp
-
         return jdi
 
     def calculate_jdi90(self, minutes_df, player1_name, player2_name, game_ids, player_positions):
@@ -568,21 +596,5 @@ class PlayerChemistry(Metrics):
             total_jdi += jdi_match
 
         return (total_jdi * 90) / total_minutes if total_minutes else 0
-
-def main():
-    plotter = Plots(filters = [('game_id', '=', 1914251)])
-    plotter.prepare_data(period=2, num_minutes=45, team_name="Real Madrid")
-    ax = plotter.draw_pitch()
-    plotter.draw_pass_map(
-        ax=ax,
-        player_position=plotter.player_position,
-        player_pass_count=plotter.player_pass_count,
-        player_pass_value=plotter.player_pass_value,
-        pair_pass_count=plotter.pair_pass_count,
-        pair_pass_value=plotter.pair_pass_value,
-        title="Passing Network - 1st Half"
-    )
-    plt.savefig("first_pass_map.png", bbox_inches='tight')
-    print("Pitch saved successfully!")
 if __name__ == "__main__":
     main()
