@@ -439,7 +439,6 @@ class PlayerChemistry(Metrics):
         minutes_df['minutes_played'] = (minutes_df['last_action'] - minutes_df['first_action']) / 60
         minutes_df['minutes_played'] = minutes_df['minutes_played'].clip(lower=1.0).round()
 
-        minutes_df = minutes_df.rename(columns={'player_name': 'player_id'})
 
         return minutes_df
 
@@ -469,7 +468,7 @@ class PlayerChemistry(Metrics):
         for i in range(len(filtered) - 1):
             current_action = filtered.iloc[i]
             next_action = filtered.iloc[i + 1]
-            if (current_action["player_id"] == player_before) and (next_action["player_id"] == player_after):
+            if (current_action["player_name"] == player_before) and (next_action["player_name"] == player_after):
                 interactions.append((current_action, next_action))
 
         return interactions
@@ -489,9 +488,9 @@ class PlayerChemistry(Metrics):
         return interactions_sum + interactions_reverse_sum
 
     def calculate_joi90(self, minutes_df, player1_name, player2_name): #minutes_df must be retrieved from all the minutes
-        df_filtered = self.data[self.data['player_id'].isin([player1_name, player2_name])]
+        df_filtered = self.data[self.data['player_name'].isin([player1_name, player2_name])]
         games_with_x_and_y = (
-            df_filtered.groupby('game_id')['player_id']
+            df_filtered.groupby('game_id')['player_name']
             .apply(lambda x: {player1_name, player2_name}.issubset(set(x)))
         )
         selected_games = games_with_x_and_y[games_with_x_and_y].index
@@ -518,12 +517,22 @@ class PlayerChemistry(Metrics):
         return player_actions['vaep_value'].sum()
 
     def expected_offensive_impact(self, player_name, current_game_id, minutes_df):
-        current_game = self.data[self.data['game_id'] == current_game_id]['game_id'].iloc[0]
-        past_games = self.data[(self.data['player_name'] == player_name) &
-                             (self.data['game_id'] < current_game)]
+        all_games_in_order = self.data['game_id'].unique().tolist()
 
-        total_minutes = minutes_df[(minutes_df['player_id'] == player_name) &
-                                   (minutes_df['game_id'] < current_game)]['minutes_played'].sum()
+        try:
+            current_idx = all_games_in_order.index(current_game_id)
+        except ValueError:
+            return 0.0  # Failsafe in case the game_id somehow doesn't exist
+
+        valid_past_games = all_games_in_order[:current_idx]
+
+        past_games = self.data[(self.data['player_name'] == player_name) &
+                               (self.data['game_id'].isin(valid_past_games))]
+
+        past_minutes = minutes_df[(minutes_df['player_name'] == player_name) &
+                                  (minutes_df['game_id'].isin(valid_past_games))]
+
+        total_minutes = past_minutes['minutes_played'].sum()
 
         if total_minutes == 0:
             return 0.0
@@ -531,6 +540,7 @@ class PlayerChemistry(Metrics):
         oi_total = 0
         for gid in past_games['game_id'].unique():
             oi_total += self.actual_offensive_impact(player_name, gid)
+
         return (oi_total * 90) / total_minutes
 
     def responsibility_share(self, pos1, pos2, opponent_pos):
@@ -547,7 +557,7 @@ class PlayerChemistry(Metrics):
 
         return (1 / (dist1 + 1e-5) + 1 / (dist2 + 1e-5)) / 2
     def joint_defensive_impact(self,  minutes_df, player1_name, player2_name, game_id, player_positions):
-        opponents = self.data[(self.data['game_id'] == game_id)]['player_id'].unique()
+        opponents = self.data[(self.data['game_id'] == game_id)]['player_name'].unique()
         jdi = 0
 
         for opponent_name in opponents:
@@ -578,7 +588,7 @@ class PlayerChemistry(Metrics):
 
         for gid in game_ids:
             minutes = minutes_df[
-                (minutes_df['player_id'].isin([player1_name, player2_name])) &
+                (minutes_df['player_name'].isin([player1_name, player2_name])) &
                 (minutes_df['game_id'] == gid)
                 ]['minutes_played']
 
