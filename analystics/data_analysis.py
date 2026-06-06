@@ -462,6 +462,29 @@ class PlayerChemistry(Metrics):
 
         return (total_joi * 90) / total_minutes if total_minutes else 0
 
+    def actual_offensive_impact(self,actions, player_id, game_id):
+        offensive_actions = ['pass', 'cross', 'dribble', 'take-on', 'shot']
+        player_actions = actions[(actions['player_id'] == player_id) &
+                                 (actions['game_id'] == game_id) &
+                                 (actions['type_name'].isin(offensive_actions))]
+        return player_actions['vaep_value'].sum()
+
+    def expected_offensive_impact(self,actions, player_id, current_game_id, minutes_df):
+        current_game = actions[actions['game_id'] == current_game_id]['game_id'].iloc[0]
+        past_games = actions[(actions['player_id'] == player_id) &
+                             (actions['game_id'] < current_game)]
+
+        total_minutes = minutes_df[(minutes_df['player_id'] == player_id) &
+                                   (minutes_df['game_id'] < current_game)]['minutes_played'].sum()
+
+        if total_minutes == 0:
+            return 0.0
+
+        oi_total = 0
+        for gid in past_games['game_id'].unique():
+            oi_total += self.actual_offensive_impact(actions, player_id, gid)
+        return (oi_total * 90) / total_minutes
+
 
 def main():
     plotter = Plots(filters = [('game_id', '=', 1914251)])
