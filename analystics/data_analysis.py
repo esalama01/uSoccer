@@ -9,6 +9,7 @@ import json
 import xgboost
 #from sklearn.model_selection import train_test_split
 import os
+from tqdm import tqdm
 
 with open('/home/esalama/PycharmProjects/uSoccer/analystics/plot_config.json', 'r') as file:
     config = json.load(file)
@@ -341,6 +342,75 @@ class VAEP(Metrics):
             self._process_single_game(game_id, all_predictions, spadl_file_path, output_dir)
 
         print("Pipeline complete! All games have been enriched with VAEP.")
+
+
+class xG(Metrics):
+    def __init__(self, read_path="../data/game_states", columns=None, filters=None):
+        super().__init__(read_path, columns, filters)
+        self.target_cols = ['goal_from_shot']
+        self.model_goal = None
+    def train(self):
+        shots_only = self.data[self.data['is_shot'] == 1].copy()
+        Y = shots_only['goal_from_shot']
+        cols_to_drop = ['scores', 'concedes', 'goal_from_shot', 'is_shot', 'game_id']
+        X = shots_only.drop(columns=cols_to_drop)
+        self.model_goal = xgboost.XGBClassifier(
+            n_estimators=50, max_depth=3, n_jobs=-1, verbosity=1, enable_categorical=True
+        )
+        self.model_goal.fit(X, Y)
+    def predict(self, X_test):
+        shot_indices = self.data[self.data['is_shot'] == 1].index
+        valid_shot_indices = X_test.index.intersection(shot_indices)
+        X_shots = X_test.loc[valid_shot_indices]
+        prob_goal = self.model_goal.predict_proba(X_shots)[:, 1]
+        predictions = pd.DataFrame({
+            'game_id': self.data.loc[valid_shot_indices, 'game_id'],
+            'xG': prob_goal,
+        }, index=valid_shot_indices)
+        return predictions
+
+    def _process_single_game(self, game_id, all_predictions, spadl_file_path, output_dir):
+        import os
+        import numpy as np
+
+        game_preds = all_predictions[all_predictions['game_id'] == game_id]
+
+        spadl_df = pd.read_parquet(
+            spadl_file_path,
+            engine='pyarrow',
+            filters=[('game_id', '=', game_id)]
+        )
+
+        if 'xG' not in spadl_df.columns:
+            spadl_df['xG'] = np.nan
+
+        spadl_df.loc[game_preds.index, 'xG'] = game_preds['xG']
+
+        save_path = os.path.join(output_dir, f"spadl_enriched_{game_id}.parquet")
+        spadl_df.to_parquet(save_path, engine='pyarrow')
+        print(f"  -> Saved xG to: spadl_enriched_{game_id}.parquet")
+
+    def process_all_games(self, all_predictions, spadl_file_path, output_dir):
+        import os
+        unique_games = all_predictions['game_id'].unique()
+        print(f"\nStarting xG Pipeline: Found {len(unique_games)} games to process.")
+
+        os.makedirs(output_dir, exist_ok=True)
+
+        for game_id in unique_games:
+            self._process_single_game(game_id, all_predictions, spadl_file_path, output_dir)
+
+        print("xG Pipeline complete! All games have been enriched.")
+
+class PlayerChemistry(Metrics):
+    def __init__(self, read_path="../data/spadl", columns=None, filters=None):
+        super().__init__(read_path, columns, filters)
+
+    def extended_vaep(self,interaction):
+        current_action, next_action = interaction
+        return current_action["vaep_value"] + next_action["vaep_value"]
+
+
 
 
 def main():
