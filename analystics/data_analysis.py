@@ -440,6 +440,27 @@ class PlayerChemistry(Metrics):
 
         return interactions_sum + interactions_reverse_sum
 
+    def calculate_joi90(self,actions, minutes_df, player1_id, player2_id):
+        df_filtered = actions[actions['player_id'].isin([player1_id, player2_id])]
+        games_with_x_and_y = (
+            df_filtered.groupby('game_id')['player_id']
+            .apply(lambda x: set([player1_id, player2_id]).issubset(set(x)))
+        )
+        selected_games = games_with_x_and_y[games_with_x_and_y].index
+        result = actions[actions['game_id'].isin(selected_games)]
+        game_ids = result['game_id'].unique().tolist()
+
+        total_joi = 0
+        total_minutes = 0
+
+        for game_id in tqdm(game_ids):
+            joi_match = self.joint_offensive_impact(actions, game_id, player1_id, player2_id)
+            minutes = minutes_df[minutes_df['game_id'] == game_id]['minutes_played'].min()
+            if minutes:
+                total_joi += joi_match
+                total_minutes += minutes
+
+        return (total_joi * 90) / total_minutes if total_minutes else 0
 
 
 def main():
