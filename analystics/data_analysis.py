@@ -512,6 +512,61 @@ class PlayerChemistry(Metrics):
 
         return (1 / (dist1 + 1e-5) + 1 / (dist2 + 1e-5)) / 2
 
+    def joint_defensive_impact(actions, minutes_df, player1_id, player2_id, game_id, player_positions):
+        opponents = actions[(actions['game_id'] == game_id)]['player_id'].unique()
+        jdi = 0
+
+        for opponent_id in opponents:
+            opponent_minutes = minutes_df[
+                (minutes_df['player_id'] == opponent_id) & (minutes_df['game_id'] == game_id)
+                ]['minutes_played'].sum()
+
+            if opponent_minutes == 0:
+                continue
+            if (player1_id == opponent_id or player2_id == opponent_id):
+                continue
+
+            actual_oi = actual_offensive_impact(actions, opponent_id, game_id)
+            expected_oi = expected_offensive_impact(actions, opponent_id, game_id, minutes_df)
+            diff = expected_oi - actual_oi
+
+            pos1 = literal_eval(player_positions.get(player1_id))['code2']
+            pos2 = literal_eval(player_positions.get(player2_id))['code2']
+            if (player_positions.get(opponent_id) == None):
+                opponent_pos = None
+            else:
+                opponent_pos = literal_eval(player_positions.get(opponent_id))['code2']
+
+            resp = responsibility_share(pos1, pos2, opponent_pos)
+
+            jdi += diff * resp
+
+        return jdi
+
+    def calculate_jdi90(actions, minutes_df, player1_id, player2_id, game_ids, player_positions):
+        total_jdi = 0
+        total_minutes = 0
+
+        for gid in game_ids:
+            minutes = minutes_df[
+                (minutes_df['player_id'].isin([player1_id, player2_id])) &
+                (minutes_df['game_id'] == gid)
+                ]['minutes_played']
+
+            if len(minutes) < 2:
+                continue
+
+            minutes = minutes.min()
+
+            if minutes > 0:
+                total_minutes += minutes
+            else:
+                continue
+
+            jdi_match = joint_defensive_impact(actions, minutes_df, player1_id, player2_id, gid, player_positions)
+            total_jdi += jdi_match
+
+        return (total_jdi * 90) / total_minutes if total_minutes else 0
 
 def main():
     plotter = Plots(filters = [('game_id', '=', 1914251)])
