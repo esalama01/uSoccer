@@ -426,6 +426,20 @@ class PlayerChemistry(Metrics):
 
         return interactions
 
+    def joint_offensive_impact(self,actions, game_id, p, q):
+        interactions = self.get_interactions(actions, game_id, p, q)
+        interactions_reverse = self.get_interactions(actions, game_id, q, p)
+        interactions_sum = 0
+        interactions_reverse_sum = 0
+
+        for i in interactions:
+            interactions_sum += self.extended_vaep(i)
+
+        for i in interactions_reverse:
+            interactions_reverse_sum += self.extended_vaep(i)
+
+        return interactions_sum + interactions_reverse_sum
+
 
 
 def main():
