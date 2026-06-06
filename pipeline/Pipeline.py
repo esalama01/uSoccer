@@ -435,7 +435,7 @@ class GstatesConverter:
         all_features = []
         all_labels = []
         all_is_shot = []  # List to hold our new shot masks
-
+        #all_types_names = [] #list to hold the actions type names
         for game_id, game_data in self.data.groupby('game_id'):
             home_team_id = game_data['team_id'].values[0]
 
@@ -445,7 +445,10 @@ class GstatesConverter:
             # Create the 'is_shot' column (1 if it's a shot of any kind, 0 otherwise)
             is_shot = game_data['type_name'].str.contains('shot', case=False, na=False).astype(int)
             is_shot.name = 'is_shot'
-
+            """
+            shot_type = game_data['type_name']
+            shot_type.name = 'type_name'
+            """
             all_features.append(X)
             all_labels.append(Y)
             all_is_shot.append(is_shot)
