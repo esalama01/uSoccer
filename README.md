@@ -170,6 +170,12 @@ plotter.draw_pass_map(
 )
 plt.savefig("passing_network.png", bbox_inches='tight')
 ```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/esalama01/uSoccer/main/analystics/first_pass_map.png" width="700" alt="Passing Network"/>
+  <br>
+  <em>Passing network — node size and color reflect pass volume and VAEP contribution.</em>
+</p>
+
 
 ### 6. Calculate Player Chemistry
 
