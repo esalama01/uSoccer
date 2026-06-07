@@ -283,8 +283,8 @@ class VAEP(Metrics):
         self.model_scoring = None
         self.model_conceding = None
     def train(self):
-        X = self.select_features(target_cols=['scores', 'concedes', 'goal_from_shot'])
-        Y = self.select_labels(target_cols=self.target_cols)
+        X = self.select_features()
+        Y = self.select_labels()
         self.model_scoring = xgboost.XGBClassifier(
             n_estimators=50, max_depth=3, n_jobs=-1, verbosity=1, enable_categorical=True
         )
@@ -404,21 +404,6 @@ class xG(Metrics):
 
         print("xG Pipeline complete! All games have been enriched.")
 
-def main():
-    plotter = Plots(filters = [('game_id', '=', 1914251)])
-    plotter.prepare_data(period=2, num_minutes=45, team_name="Real Madrid")
-    ax = plotter.draw_pitch()
-    plotter.draw_pass_map(
-        ax=ax,
-        player_position=plotter.player_position,
-        player_pass_count=plotter.player_pass_count,
-        player_pass_value=plotter.player_pass_value,
-        pair_pass_count=plotter.pair_pass_count,
-        pair_pass_value=plotter.pair_pass_value,
-        title="Passing Network - 1st Half"
-    )
-    plt.savefig("first_pass_map.png", bbox_inches='tight')
-    print("Pitch saved successfully!")
 
 class PlayerChemistry(Metrics):
     def __init__(self, read_path="../data/spadl", columns=None, filters=None):
@@ -606,5 +591,24 @@ class PlayerChemistry(Metrics):
             total_jdi += jdi_match
 
         return (total_jdi * 90) / total_minutes if total_minutes else 0
+
+def main():
+    vp = VAEP()
+
+    plotter = Plots(filters = [('game_id', '=', 1821496)])
+    plotter.prepare_data(period=2, num_minutes=45, team_name="Barcelona")
+    ax = plotter.draw_pitch()
+    plotter.draw_pass_map(
+        ax=ax,
+        player_position=plotter.player_position,
+        player_pass_count=plotter.player_pass_count,
+        player_pass_value=plotter.player_pass_value,
+        pair_pass_count=plotter.pair_pass_count,
+        pair_pass_value=plotter.pair_pass_value,
+        title="Passing Network - 1st Half"
+    )
+    plt.savefig("first_pass_map.png", bbox_inches='tight')
+    print("Pitch saved successfully!")
+
 if __name__ == "__main__":
     main()
